@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบติดตามซ่อม</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3250;
+  --text: #e8eaf0;
+  --muted: #6b7099;
+  --accent: #4f8ef7;
+
+  --wait:    #f0a500;
+  --working: #4f8ef7;
+  --done:    #2ecc71;
+  --fail:    #e74c3c;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Sarabun', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.header-search {
+  flex: 1;
+  max-width: 480px;
+  position: relative;
+}
+.header-search input {
+  width: 100%;
+  padding: 9px 14px 9px 38px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+  text-transform: uppercase;
+}
+.header-search input:focus { border-color: var(--accent); }
+.header-search input::placeholder { text-transform: none; font-family: 'Sarabun', sans-serif; font-size: 0.85rem; color: var(--muted); }
+.search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 1rem;
+  pointer-events: none;
+}
+.header-stats {
+  display: flex;
+  gap: 18px;
+  margin-left: auto;
+}
+.hstat { text-align: center; }
+.hstat-num { font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 600; }
+.hstat-label { font-size: 0.7rem; color: var(--muted); }
+.hstat-num.c-wait { color: var(--wait); }
+.hstat-num.c-work { color: var(--working); }
+.hstat-num.c-done { color: var(--done); }
+.hstat-num.c-fail { color: var(--fail); }
+
+/* ── LAYOUT ── */
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 20px;
+}
+
+/* ── SEARCH RESULT CARD ── */
+.result-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin-bottom: 28px;
+  display: none;
+}
+.result-banner.show { display: block; }
+.result-not-found {
+  text-align: center;
+  padding: 32px;
+  color: var(--muted);
+}
+.result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.result-serial {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+.result-name { font-size: 1rem; color: var(--muted); margin-top: 2px; }
+.status-badge {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-wait    { background: rgba(240,165,0,0.15);   color: var(--wait);    border: 1px solid var(--wait); }
+.badge-working { background: rgba(79,142,247,0.15);  color: var(--working); border: 1px solid var(--working); }
+.badge-done    { background: rgba(46,204,113,0.15);  color: var(--done);    border: 1px solid var(--done); }
+.badge-fail    { background: rgba(231,76,60,0.15);   color: var(--fail);    border: 1px solid var(--fail); }
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.info-item label { font-size: 0.72rem; color: var(--muted); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 3px; }
+.info-item span { font-size: 0.95rem; }
+
+.detail-block { background: var(--surface2); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+.detail-block label { font-size: 0.72rem; color: var(--muted); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.detail-block p { font-size: 0.92rem; line-height: 1.7; white-space: pre-wrap; }
+
+.result-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+/* ── ADD FORM ── */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 28px;
+  display: none;
+}
+.form-card.show { display: block; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-group label { font-size: 0.75rem; color: var(--muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 9px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.92rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus { border-color: var(--accent); }
+.form-group input.mono { font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; }
+.form-group textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+.form-group select option { background: var(--surface2); }
+
+.form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+
+/* ── BUTTONS ── */
+.btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--text); color: var(--text); }
+.btn-danger { background: transparent; color: var(--fail); border: 1px solid var(--border); }
+.btn-danger:hover { background: var(--fail); color: white; border-color: var(--fail); }
+.btn-success { background: transparent; color: var(--done); border: 1px solid var(--border); }
+.btn-success:hover { background: var(--done); color: #000; border-color: var(--done); }
+.btn-add {
+  background: var(--accent);
+  color: white;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+}
+
+/* ── FILTER TABS ── */
+.filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.filter-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.filter-tab:hover { border-color: var(--accent); color: var(--accent); }
+.filter-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead tr { border-bottom: 1px solid var(--border); }
+th { padding: 10px 14px; text-align: left; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+td { padding: 12px 14px; border-bottom: 1px solid rgba(46,50,80,0.5); font-size: 0.88rem; vertical-align: middle; }
+tr:hover td { background: var(--surface2); cursor: pointer; }
+.td-serial { font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; font-weight: 600; color: var(--accent); }
+.td-name { max-width: 180px; }
+.td-problem { max-width: 220px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-date { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+
+/* ── EDIT INLINE ── */
+.edit-form {
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 12px;
+  display: none;
+}
+.edit-form.show { display: block; }
+
+/* ── EMPTY ── */
+.empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.22s;
+  z-index: 999;
+  pointer-events: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* ── MODAL ── */
+.modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200;
+  display: none;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+@media (max-width: 600px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .header-stats { display: none; }
+  .header-search { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">⚙ REPAIR</div>
+  <div class="header-search">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="พิมพ์หมายเลขชิ้นงาน เช่น THGZZ0048" oninput="handleSearch()" onkeydown="if(event.key==='Escape')clearSearch()">
+  </div>
+  <div class="header-stats">
+    <div class="hstat"><div class="hstat-num c-wait" id="hs-wait">0</div><div class="hstat-label">รอซ่อม</div></div>
+    <div class="hstat"><div class="hstat-num c-work" id="hs-work">0</div><div class="hstat-label">กำลังซ่อม</div></div>
+    <div class="hstat"><div class="hstat-num c-done" id="hs-done">0</div><div class="hstat-label">เสร็จแล้ว</div></div>
+    <div class="hstat"><div class="hstat-num c-fail" id="hs-fail">0</div><div class="hstat-label">ซ่อมไม่ได้</div></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- SEARCH RESULT -->
+  <div class="result-banner" id="resultBanner"></div>
+
+  <!-- ADD FORM TOGGLE -->
+  <div class="section-head">
+    <div class="section-title">รายการทั้งหมด</div>
+    <button class="btn btn-add" onclick="toggleAddForm()">+ เพิ่มชิ้นงาน</button>
+  </div>
+
+  <!-- ADD FORM -->
+  <div class="form-card" id="addForm">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>หมายเลขชิ้นงาน *</label>
+        <input class="mono" type="text" id="f-serial" placeholder="เช่น THGZZ0048">
+      </div>
+      <div class="form-group">
+        <label>ชื่ออุปกรณ์</label>
+        <input type="text" id="f-name" placeholder="เช่น มอเตอร์ปั๊มน้ำ">
+      </div>
+      <div class="form-group">
+        <label>สถานะ</label>
+        <select id="f-status">
+          <option value="wait">🟡 รอซ่อม</option>
+          <option value="working">🔵 กำลังซ่อม</option>
+          <option value="done">🟢 ซ่อมเสร็จ</option>
+          <option value="fail">🔴 ซ่อมไม่ได้</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>วันที่รับงาน</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="form-group">
+        <label>ผู้รับผิดชอบ</label>
+        <input type="text" id="f-tech" placeholder="ชื่อช่าง">
+      </div>
+      <div class="form-group">
+        <label>วันที่เสร็จ (ถ้ามี)</label>
+        <input type="date" id="f-donedate">
+      </div>
+      <div class="form-group full">
+        <label>อาการ / ปัญหา *</label>
+        <textarea id="f-problem" placeholder="อธิบายอาการที่พบ เช่น เปิดไม่ติด, ไฟกระพริบ, มีเสียงดัง..."></textarea>
+      </div>
+      <div class="form-group full">
+        <label>วิธีแก้ไข / หมายเหตุ</label>
+        <textarea id="f-solution" placeholder="วิธีที่ใช้ซ่อม หรือสาเหตุที่ซ่อมไม่ได้..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="toggleAddForm()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="addItem()">บันทึกชิ้นงาน</button>
+    </div>
+  </div>
+
+  <!-- FILTER TABS -->
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="setFilter('all', this)">ทั้งหมด</button>
+    <button class="filter-tab" onclick="setFilter('wait', this)">🟡 รอซ่อม</button>
+    <button class="filter-tab" onclick="setFilter('working', this)">🔵 กำลังซ่อม</button>
+    <button class="filter-tab" onclick="setFilter('done', this)">🟢 ซ่อมเสร็จ</button>
+    <button class="filter-tab" onclick="setFilter('fail', this)">🔴 ซ่อมไม่ได้</button>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>หมายเลข</th>
+          <th>ชื่ออุปกรณ์</th>
+          <th>สถานะ</th>
+          <th>อาการ</th>
+          <th>วันที่รับ</th>
+          <th>ช่าง</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="empty" id="emptyMsg" style="display:none">
+      <p style="font-size:2rem;margin-bottom:8px">🔧</p>
+      <p>ยังไม่มีชิ้นงาน</p>
+      <p style="font-size:0.85rem;margin-top:4px">กด "เพิ่มชิ้นงาน" เพื่อเริ่มบันทึก</p>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <div class="modal-title" id="editModalSerial"></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>ชื่ออุปกรณ์</label>
+        <input type="text" id="e-name">
+      </div>
+      <div class="form-group">
+        <label>สถานะ</label>
+        <select id="e-status">
+          <option value="wait">🟡 รอซ่อม</option>
+          <option value="working">🔵 กำลังซ่อม</option>
+          <option value="done">🟢 ซ่อมเสร็จ</option>
+          <option value="fail">🔴 ซ่อมไม่ได้</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>วันที่รับงาน</label>
+        <input type="date" id="e-date">
+      </div>
+      <div class="form-group">
+        <label>วันที่เสร็จ</label>
+        <input type="date" id="e-donedate">
+      </div>
+      <div class="form-group">
+        <label>ผู้รับผิดชอบ</label>
+        <input type="text" id="e-tech">
+      </div>
+      <div class="form-group full">
+        <label>อาการ / ปัญหา</label>
+        <textarea id="e-problem"></textarea>
+      </div>
+      <div class="form-group full">
+        <label>วิธีแก้ไข / หมายเหตุ</label>
+        <textarea id="e-solution"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveEdit()">บันทึกการแก้ไข</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──
+let items = [];
+let currentFilter = 'all';
+let editingId = null;
+let db = null;
+
+const STATUS_LABEL = { wait:'รอซ่อม', working:'กำลังซ่อม', done:'ซ่อมเสร็จ', fail:'ซ่อมไม่ได้' };
+const STATUS_BADGE = { wait:'badge-wait', working:'badge-working', done:'badge-done', fail:'badge-fail' };
+const STATUS_EMOJI = { wait:'🟡', working:'🔵', done:'🟢', fail:'🔴' };
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('RepairDB', 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function loadFromDB() {
+  return new Promise(resolve => {
+    const req = db.transaction('items','readonly').objectStore('items').getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => resolve([]);
+  });
+}
+
+function save() {
+  if (!db) return;
+  const store = db.transaction('items','readwrite').objectStore('items');
+  store.clear();
+  items.forEach(item => store.put(item));
+}
+
+// ── FORM ──
+function toggleAddForm() {
+  const f = document.getElementById('addForm');
+  f.classList.toggle('show');
+  if (f.classList.contains('show')) {
+    document.getElementById('f-date').value = today();
+    document.getElementById('f-serial').focus();
+  }
+}
+
+function today() { return new Date().toISOString().slice(0,10); }
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const [y,m,day] = d.split('-');
+  return `${parseInt(day)}/${parseInt(m)}/${parseInt(y)+543}`;
+}
+
+function addItem() {
+  const serial = document.getElementById('f-serial').value.trim().toUpperCase();
+  const problem = document.getElementById('f-problem').value.trim();
+  if (!serial) { showToast('กรุณาใส่หมายเลขชิ้นงาน'); return; }
+  if (!problem) { showToast('กรุณาระบุอาการ/ปัญหา'); return; }
+  if (items.find(x => x.serial === serial)) {
+    showToast('หมายเลขนี้มีในระบบแล้ว'); return;
+  }
+  items.unshift({
+    id: Date.now(),
+    serial,
+    name: document.getElementById('f-name').value.trim(),
+    status: document.getElementById('f-status').value,
+    date: document.getElementById('f-date').value,
+    doneDate: document.getElementById('f-donedate').value,
+    tech: document.getElementById('f-tech').value.trim(),
+    problem,
+    solution: document.getElementById('f-solution').value.trim(),
+    createdAt: new Date().toISOString()
+  });
+  save();
+  clearAddForm();
+  document.getElementById('addForm').classList.remove('show');
+  renderAll();
+  showToast('✓ บันทึกชิ้นงานแล้ว');
+}
+
+function clearAddForm() {
+  ['f-serial','f-name','f-tech','f-problem','f-solution','f-donedate'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-status').value = 'wait';
+  document.getElementById('f-date').value = today();
+}
+
+// ── SEARCH ──
+function handleSearch() {
+  const q = document.getElementById('searchInput').value.trim().toUpperCase();
+  const banner = document.getElementById('resultBanner');
+  if (!q) { banner.classList.remove('show'); renderTable(); return; }
+
+  const item = items.find(x => x.serial === q);
+  if (item) {
+    banner.classList.add('show');
+    banner.innerHTML = buildResultCard(item);
+  } else {
+    // partial match
+    const partials = items.filter(x => x.serial.includes(q));
+    if (partials.length > 0 && partials.length <= 5) {
+      banner.classList.add('show');
+      banner.innerHTML = `<div style="color:var(--muted);font-size:0.82rem;margin-bottom:10px">ไม่พบรหัสตรงๆ — แสดงผลที่คล้ายกัน:</div>` +
+        partials.map(buildResultCard).join('<hr style="border-color:var(--border);margin:12px 0">');
+    } else {
+      banner.classList.add('show');
+      banner.innerHTML = `<div class="result-not-found">🔍 ไม่พบหมายเลข <b style="font-family:monospace;color:var(--accent)">${q}</b> ในระบบ</div>`;
+    }
+  }
+  renderTable();
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  handleSearch();
+}
+
+function buildResultCard(item) {
+  return `
+    <div>
+      <div class="result-header">
+        <div>
+          <div class="result-serial">${item.serial}</div>
+          <div class="result-name">${item.name || '—'}</div>
+        </div>
+        <span class="status-badge ${STATUS_BADGE[item.status]}">${STATUS_EMOJI[item.status]} ${STATUS_LABEL[item.status]}</span>
+      </div>
+      <div class="info-grid">
+        <div class="info-item"><label>วันที่รับงาน</label><span>${fmtDate(item.date)}</span></div>
+        <div class="info-item"><label>วันที่เสร็จ</label><span>${fmtDate(item.doneDate)}</span></div>
+        <div class="info-item"><label>ช่างผู้รับผิดชอบ</label><span>${item.tech || '—'}</span></div>
+      </div>
+      <div class="detail-block">
+        <label>อาการ / ปัญหา</label>
+        <p>${esc(item.problem) || '—'}</p>
+      </div>
+      ${item.solution ? `<div class="detail-block"><label>วิธีแก้ไข / หมายเหตุ</label><p>${esc(item.solution)}</p></div>` : ''}
+      <div class="result-actions">
+        <button class="btn btn-ghost" onclick="openEdit(${item.id})">✏️ แก้ไข</button>
+        <button class="btn btn-danger" onclick="deleteItem(${item.id})">🗑 ลบ</button>
+      </div>
+    </div>`;
+}
+
+// ── FILTER & TABLE ──
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+}
+
+function renderTable() {
+  const q = document.getElementById('searchInput').value.trim().toUpperCase();
+  let list = items;
+  if (q) list = list.filter(x => x.serial.includes(q) || (x.name||'').toUpperCase().includes(q));
+  if (currentFilter !== 'all') list = list.filter(x => x.status === currentFilter);
+
+  const tbody = document.getElementById('tableBody');
+  const empty = document.getElementById('emptyMsg');
+
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = list.map(item => `
+    <tr onclick="openEdit(${item.id})">
+      <td class="td-serial">${item.serial}</td>
+      <td class="td-name">${item.name || '—'}</td>
+      <td><span class="status-badge ${STATUS_BADGE[item.status]}">${STATUS_EMOJI[item.status]} ${STATUS_LABEL[item.status]}</span></td>
+      <td class="td-problem">${esc(item.problem)}</td>
+      <td class="td-date">${fmtDate(item.date)}</td>
+      <td>${item.tech || '—'}</td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:0.8rem;" onclick="deleteItem(${item.id})">🗑 ลบ</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ── STATS ──
+function renderStats() {
+  ['wait','working','done','fail'].forEach(s => {
+    document.getElementById('hs-'+s.replace('working','work')).textContent = items.filter(x => x.status === s).length;
+  });
+  // fix key mismatch
+  document.getElementById('hs-wait').textContent    = items.filter(x=>x.status==='wait').length;
+  document.getElementById('hs-work').textContent    = items.filter(x=>x.status==='working').length;
+  document.getElementById('hs-done').textContent    = items.filter(x=>x.status==='done').length;
+  document.getElementById('hs-fail').textContent    = items.filter(x=>x.status==='fail').length;
+}
+
+// ── EDIT MODAL ──
+function openEdit(id) {
+  const item = items.find(x => x.id === id);
+  if (!item) return;
+  editingId = id;
+  document.getElementById('editModalSerial').textContent = item.serial;
+  document.getElementById('e-name').value     = item.name || '';
+  document.getElementById('e-status').value   = item.status;
+  document.getElementById('e-date').value     = item.date || '';
+  document.getElementById('e-donedate').value = item.doneDate || '';
+  document.getElementById('e-tech').value     = item.tech || '';
+  document.getElementById('e-problem').value  = item.problem || '';
+  document.getElementById('e-solution').value = item.solution || '';
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('show');
+  editingId = null;
+}
+
+function saveEdit() {
+  const item = items.find(x => x.id === editingId);
+  if (!item) return;
+  item.name     = document.getElementById('e-name').value.trim();
+  item.status   = document.getElementById('e-status').value;
+  item.date     = document.getElementById('e-date').value;
+  item.doneDate = document.getElementById('e-donedate').value;
+  item.tech     = document.getElementById('e-tech').value.trim();
+  item.problem  = document.getElementById('e-problem').value.trim();
+  item.solution = document.getElementById('e-solution').value.trim();
+  save();
+  closeModal();
+  handleSearch();
+  renderStats();
+  showToast('✓ แก้ไขแล้ว');
+}
+
+function deleteItem(id) {
+  if (!confirm('ลบชิ้นงานนี้ออกจากระบบ?')) return;
+  items = items.filter(x => x.id !== id);
+  save();
+  document.getElementById('resultBanner').classList.remove('show');
+  document.getElementById('searchInput').value = '';
+  renderAll();
+  showToast('ลบแล้ว');
+}
+
+// ── UTIL ──
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function renderAll() { renderStats(); renderTable(); }
+
+// close modal on bg click
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+initDB().then(async () => {
+  items = await loadFromDB();
+  if (items.length === 0) {
+    items = [
+      { id: 1, serial:'THGZZ0048', name:'มอเตอร์ปั๊มน้ำ', status:'working', date:'2025-06-10', doneDate:'', tech:'อภิสิทธิ์', problem:'เปิดติดแล้วดับเอง มีกลิ่นไหม้', solution:'กำลังตรวจสอบขดลวด', createdAt:'' },
+      { id: 2, serial:'THGZZ0031', name:'ตู้ควบคุม CNC', status:'done', date:'2025-06-05', doneDate:'2025-06-08', tech:'อภิสิทธิ์', problem:'หน้าจอแสดงผลภาพซีด', solution:'เปลี่ยน capacitor C12 และปรับ trimmer VR3', createdAt:'' },
+      { id: 3, serial:'THGAA0012', name:'เซ็นเซอร์ความดัน', status:'wait', date:'2025-06-14', doneDate:'', tech:'', problem:'ค่าที่อ่านได้กระโดดไม่เสถียร', solution:'', createdAt:'' },
+      { id: 4, serial:'THGBB0077', name:'บอร์ดควบคุม inverter', status:'fail', date:'2025-05-28', doneDate:'', tech:'อภิสิทธิ์', problem:'ไฟระเบิดที่ IGBT ทั้งหมด', solution:'ความเสียหายเกินซ่อม ชิ้นส่วนหาไม่ได้แล้ว', createdAt:'' },
+    ];
+    save();
+  }
+  renderAll();
+}).catch(() => showToast('เกิดข้อผิดพลาดในการโหลดข้อมูล'));
+</script>
+</body>
+</html>
